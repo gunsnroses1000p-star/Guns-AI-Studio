@@ -4,6 +4,7 @@ from pathlib import Path
 from PIL import Image, ImageEnhance, ImageFilter, ImageDraw
 import replicate
 from huggingface_hub import InferenceClient, hf_hub_download
+import gradio as gr
 
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 HF_TOKEN = os.getenv("HF_TOKEN")
