@@ -56,6 +56,52 @@ def generate_with_provider(
             )
 
             return extract_output(output), f"✅ Replicate image generated. Seed: {seed}"
+
+        elif provider == "Hugging Face":
+            image = hf_client.text_to_image(
+                prompt=prompt,
+                model=model or DEFAULT_IMAGE_MODEL,
+                negative_prompt=negative_prompt,
+                width=width,
+                height=height,
+                num_inference_steps=steps,
+                guidance_scale=3.5,
+            )
+
+            output_path = "outputs/hf_generated_image.png"
+            image.save(output_path)
+
+            return output_path, f"✅ Hugging Face image generated. Seed: {seed}"
+
+        elif provider == "RunPod":
+            image = generate_with_runpod(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                width=width,
+                height=height,
+                steps=steps,
+                seed=seed,
+            )
+
+            output_path = "outputs/runpod_generated_image.png"
+            image.save(output_path)
+
+            return output_path, f"✅ RunPod image generated. Seed: {seed}"
+
+        elif provider == "Fal.ai":
+            return call_fal_ai(prompt, init_image)
+
+        elif provider == "Civitai":
+            return call_civitai(
+                prompt,
+                civitai_model_id if civitai_model_id else "123456",
+            )
+
+        return None, "❌ Unknown image provider."
+
+    except Exception as e:
+        return None, f"❌ Image Generation Error: {str(e)}"
+
 def toggle_model_id(provider):
     return gr.update(
         visible=(provider == "Civitai")
