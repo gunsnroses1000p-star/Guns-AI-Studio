@@ -56,3 +56,8 @@ def generate_with_provider(
             )
 
             return extract_output(output), f"✅ Replicate image generated. Seed: {seed}"
+def toggle_model_id(provider):
+    return gr.update(
+        visible=(provider == "Civitai")
+    )
+    
