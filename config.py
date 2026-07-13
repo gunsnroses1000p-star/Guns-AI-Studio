@@ -1,5 +1,7 @@
 import os
+from pathlib import Path
 
+# API Keys
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
 RUNPOD_ENDPOINT_ID = os.getenv("RUNPOD_ENDPOINT_ID")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
@@ -7,9 +9,14 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 FAL_KEY = os.getenv("FAL_KEY") 
 CIVITAI_KEY = os.getenv("CIVITAI_API_KEY") 
 
+# Ensure outputs directory exists
+Path("outputs").mkdir(exist_ok=True)
+
+# Model Defaults
 DEFAULT_IMAGE_MODEL = "black-forest-labs/FLUX.1-dev"
 DEFAULT_LORA_MODEL = "black-forest-labs/flux-dev-lora"
 LORA_URL = "https://huggingface.co/spaces/Guns6996/guns-lora-app/resolve/main/flux-lora.safetensors"
+
 DEFAULT_NEGATIVE = (
     "blurry, low quality, cartoon, anime, CGI, 3d render, digital painting, "
     "smooth plastic skin, perfect porcelain skin, doll skin, wax skin, plastic skin, overprocessed face, beauty filter, glamour makeup, "
