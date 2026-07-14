@@ -1,10 +1,10 @@
 runpod
 
-torch
-torchvision
-accelerate
-transformers
-diffusers
+torch==2.6.0
+torchvision==0.21.0
+accelerate==1.5.2
+transformers==4.49.0
+diffusers==0.32.2
 
 safetensors
 sentencepiece
@@ -13,6 +13,6 @@ pillow
 numpy
 requests
 
-xformers
-huggingface_hub
+xformers==0.0.29.post2
+huggingface_hub==0.29.3
 protobuf
