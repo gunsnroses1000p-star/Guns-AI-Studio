@@ -1,1 +1,16 @@
+runpod
 
+torch
+torchvision
+accelerate
+transformers
+diffusers
+
+safetensors
+sentencepiece
+
+pillow
+numpy
+requests
+
+xformers
