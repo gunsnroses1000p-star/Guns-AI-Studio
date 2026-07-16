@@ -1,28 +1,68 @@
 import io
+import os
 import sys
 import base64
+import tempfile
 import traceback
 
 import runpod
 import torch
-from PIL import Image
-from diffusers import FluxPipeline, FluxImg2ImgPipeline
+import imageio.v2 as imageio
 
+from PIL import Image
+
+from diffusers import (
+    FluxPipeline,
+    FluxImg2ImgPipeline,
+    LTXImageToVideoPipeline,
+)
+
+
+# ==========================================
+# MODEL CONFIGURATION
+# ==========================================
 
 MODEL_ID = "black-forest-labs/FLUX.1-dev"
+VIDEO_MODEL_ID = "Lightricks/LTX-Video"
 
-print("=== Guns AI Studio RunPod Worker Starting ===", flush=True)
-print(f"Python: {sys.version}", flush=True)
-print(f"PyTorch: {torch.__version__}", flush=True)
-print(f"CUDA available: {torch.cuda.is_available()}", flush=True)
+
+print(
+    "=== Guns AI Studio RunPod Worker Starting ===",
+    flush=True,
+)
+
+print(
+    f"Python: {sys.version}",
+    flush=True,
+)
+
+print(
+    f"PyTorch: {torch.__version__}",
+    flush=True,
+)
+
+print(
+    f"CUDA available: {torch.cuda.is_available()}",
+    flush=True,
+)
 
 if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}", flush=True)
+    print(
+        f"GPU: {torch.cuda.get_device_name(0)}",
+        flush=True,
+    )
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+DEVICE = (
+    "cuda"
+    if torch.cuda.is_available()
+    else "cpu"
+)
+
 
 txt2img_pipe = None
 img2img_pipe = None
+img2video_pipe = None
 
 
 # ==========================================
@@ -56,7 +96,9 @@ def load_txt2img_model():
             "Enabling CPU offload for Text-to-Image...",
             flush=True,
         )
+
         txt2img_pipe.enable_model_cpu_offload()
+
     else:
         txt2img_pipe.to("cpu")
 
@@ -95,7 +137,9 @@ def load_img2img_model():
             "Enabling CPU offload for Img2Img...",
             flush=True,
         )
+
         img2img_pipe.enable_model_cpu_offload()
+
     else:
         img2img_pipe.to("cpu")
 
@@ -105,6 +149,69 @@ def load_img2img_model():
     )
 
     return img2img_pipe
+
+
+def load_img2video_model():
+    global img2video_pipe
+
+    if img2video_pipe is not None:
+        return img2video_pipe
+
+    print(
+        f"Loading Image-to-Video model: {VIDEO_MODEL_ID}",
+        flush=True,
+    )
+
+    dtype = (
+        torch.bfloat16
+        if DEVICE == "cuda"
+        else torch.float32
+    )
+
+    img2video_pipe = (
+        LTXImageToVideoPipeline.from_pretrained(
+            VIDEO_MODEL_ID,
+            torch_dtype=dtype,
+        )
+    )
+
+    if DEVICE == "cuda":
+
+        print(
+            "Enabling CPU offload for Image-to-Video...",
+            flush=True,
+        )
+
+        img2video_pipe.enable_model_cpu_offload()
+
+    else:
+        img2video_pipe.to("cpu")
+
+    # Helps reduce memory use during VAE decoding.
+    if hasattr(
+        img2video_pipe,
+        "vae",
+    ):
+        try:
+            img2video_pipe.vae.enable_tiling()
+
+            print(
+                "VAE tiling enabled.",
+                flush=True,
+            )
+
+        except Exception as e:
+            print(
+                f"Could not enable VAE tiling: {e}",
+                flush=True,
+            )
+
+    print(
+        "LTX Image-to-Video model loaded successfully.",
+        flush=True,
+    )
+
+    return img2video_pipe
 
 
 # ==========================================
@@ -131,10 +238,12 @@ def base64_to_image(image_base64):
         )
 
     if "," in image_base64:
-        image_base64 = image_base64.split(
-            ",",
-            1,
-        )[1]
+        image_base64 = (
+            image_base64.split(
+                ",",
+                1,
+            )[1]
+        )
 
     image_bytes = base64.b64decode(
         image_base64
@@ -145,33 +254,58 @@ def base64_to_image(image_base64):
     ).convert("RGB")
 
 
+def file_to_base64(file_path):
+    with open(
+        file_path,
+        "rb",
+    ) as file:
+
+        return base64.b64encode(
+            file.read()
+        ).decode("utf-8")
+
+
 # ==========================================
 # TEXT TO IMAGE
 # ==========================================
 
 def generate_txt2img(job_input):
+
     prompt = job_input.get(
         "prompt",
         "A beautiful photorealistic landscape",
     )
 
     width = int(
-        job_input.get("width", 1024)
+        job_input.get(
+            "width",
+            1024,
+        )
     )
 
     height = int(
-        job_input.get("height", 1024)
+        job_input.get(
+            "height",
+            1024,
+        )
     )
 
     steps = int(
-        job_input.get("steps", 28)
+        job_input.get(
+            "steps",
+            28,
+        )
     )
 
     seed = int(
-        job_input.get("seed", 0)
+        job_input.get(
+            "seed",
+            0,
+        )
     )
 
     if seed <= 0:
+
         seed = torch.randint(
             1,
             2147483647,
@@ -179,8 +313,10 @@ def generate_txt2img(job_input):
         ).item()
 
     print(
-        f"TXT2IMG: {width}x{height}, "
-        f"steps={steps}, seed={seed}",
+        f"TXT2IMG: "
+        f"{width}x{height}, "
+        f"steps={steps}, "
+        f"seed={seed}",
         flush=True,
     )
 
@@ -199,7 +335,9 @@ def generate_txt2img(job_input):
     ).images[0]
 
     return {
-        "image_base64": image_to_base64(image),
+        "image_base64": image_to_base64(
+            image
+        ),
         "seed": seed,
         "task": "txt2img",
     }
@@ -210,6 +348,7 @@ def generate_txt2img(job_input):
 # ==========================================
 
 def generate_img2img(job_input):
+
     prompt = job_input.get(
         "prompt",
         "Enhance this image while preserving the subject.",
@@ -225,22 +364,35 @@ def generate_img2img(job_input):
         )
 
     strength = float(
-        job_input.get("strength", 0.35)
+        job_input.get(
+            "strength",
+            0.35,
+        )
     )
 
     guidance_scale = float(
-        job_input.get("guidance_scale", 5.5)
+        job_input.get(
+            "guidance_scale",
+            5.5,
+        )
     )
 
     steps = int(
-        job_input.get("steps", 30)
+        job_input.get(
+            "steps",
+            30,
+        )
     )
 
     seed = int(
-        job_input.get("seed", 0)
+        job_input.get(
+            "seed",
+            0,
+        )
     )
 
     if seed <= 0:
+
         seed = torch.randint(
             1,
             2147483647,
@@ -251,9 +403,13 @@ def generate_img2img(job_input):
         image_base64
     )
 
-    # Keep image dimensions FLUX-friendly.
-    original_width = input_image.width
-    original_height = input_image.height
+    original_width = (
+        input_image.width
+    )
+
+    original_height = (
+        input_image.height
+    )
 
     max_dimension = 1024
 
@@ -268,24 +424,43 @@ def generate_img2img(job_input):
 
     width = max(
         64,
-        (int(original_width * scale) // 16) * 16,
+        (
+            int(
+                original_width
+                * scale
+            )
+            // 16
+        )
+        * 16,
     )
 
     height = max(
         64,
-        (int(original_height * scale) // 16) * 16,
+        (
+            int(
+                original_height
+                * scale
+            )
+            // 16
+        )
+        * 16,
     )
 
     input_image = input_image.resize(
-        (width, height),
+        (
+            width,
+            height,
+        ),
         Image.LANCZOS,
     )
 
     print(
-        f"IMG2IMG: {width}x{height}, "
+        f"IMG2IMG: "
+        f"{width}x{height}, "
         f"strength={strength}, "
         f"guidance={guidance_scale}, "
-        f"steps={steps}, seed={seed}",
+        f"steps={steps}, "
+        f"seed={seed}",
         flush=True,
     )
 
@@ -304,16 +479,221 @@ def generate_img2img(job_input):
         generator=generator,
     ).images[0]
 
-    # Return result at the original uploaded size.
     image = image.resize(
-        (original_width, original_height),
+        (
+            original_width,
+            original_height,
+        ),
         Image.LANCZOS,
     )
 
     return {
-        "image_base64": image_to_base64(image),
+        "image_base64": image_to_base64(
+            image
+        ),
         "seed": seed,
         "task": "img2img",
+    }
+
+
+# ==========================================
+# IMAGE TO VIDEO
+# ==========================================
+
+def generate_img2video(job_input):
+
+    prompt = job_input.get(
+        "prompt",
+        (
+            "Natural realistic motion, "
+            "cinematic movement, "
+            "stable identity."
+        ),
+    )
+
+    negative_prompt = job_input.get(
+        "negative_prompt",
+        (
+            "different person, "
+            "identity drift, "
+            "distorted face, "
+            "deformed face, "
+            "asymmetrical eyes, "
+            "blurry face, "
+            "flickering, "
+            "jittery motion, "
+            "slow motion, "
+            "low quality"
+        ),
+    )
+
+    image_base64 = job_input.get(
+        "image_base64"
+    )
+
+    if not image_base64:
+
+        raise ValueError(
+            "Img2Video requires image_base64."
+        )
+
+    steps = int(
+        job_input.get(
+            "steps",
+            30,
+        )
+    )
+
+    guidance_scale = float(
+        job_input.get(
+            "guidance_scale",
+            5.0,
+        )
+    )
+
+    num_frames = int(
+        job_input.get(
+            "num_frames",
+            121,
+        )
+    )
+
+    fps = int(
+        job_input.get(
+            "fps",
+            24,
+        )
+    )
+
+    seed = int(
+        job_input.get(
+            "seed",
+            0,
+        )
+    )
+
+    if seed <= 0:
+
+        seed = torch.randint(
+            1,
+            2147483647,
+            (1,),
+        ).item()
+
+    input_image = base64_to_image(
+        image_base64
+    )
+
+    # LTX works best with dimensions
+    # divisible by 32.
+    if (
+        input_image.width
+        >= input_image.height
+    ):
+
+        width = 704
+        height = 480
+
+    else:
+
+        width = 480
+        height = 704
+
+    input_image = input_image.resize(
+        (
+            width,
+            height,
+        ),
+        Image.LANCZOS,
+    )
+
+    print(
+        f"IMG2VIDEO: "
+        f"{width}x{height}, "
+        f"frames={num_frames}, "
+        f"fps={fps}, "
+        f"steps={steps}, "
+        f"guidance={guidance_scale}, "
+        f"seed={seed}",
+        flush=True,
+    )
+
+    model = load_img2video_model()
+
+    generator_device = (
+        "cuda"
+        if DEVICE == "cuda"
+        else "cpu"
+    )
+
+    generator = torch.Generator(
+        device=generator_device
+    ).manual_seed(seed)
+
+    output = model(
+        image=input_image,
+        prompt=prompt,
+        negative_prompt=negative_prompt,
+        width=width,
+        height=height,
+        num_frames=num_frames,
+        num_inference_steps=steps,
+        guidance_scale=guidance_scale,
+        generator=generator,
+        decode_timestep=0.05,
+        decode_noise_scale=0.015,
+    )
+
+    frames = output.frames[0]
+
+    print(
+        f"Generated {len(frames)} video frames.",
+        flush=True,
+    )
+
+    temp_file = tempfile.NamedTemporaryFile(
+        suffix=".mp4",
+        delete=False,
+    )
+
+    video_path = temp_file.name
+
+    temp_file.close()
+
+    try:
+
+        imageio.mimsave(
+            video_path,
+            frames,
+            fps=fps,
+            codec="libx264",
+        )
+
+        print(
+            "Video exported successfully.",
+            flush=True,
+        )
+
+        video_base64 = file_to_base64(
+            video_path
+        )
+
+    finally:
+
+        if os.path.exists(
+            video_path
+        ):
+
+            os.remove(
+                video_path
+            )
+
+    return {
+        "video_base64": video_base64,
+        "seed": seed,
+        "fps": fps,
+        "num_frames": num_frames,
+        "task": "img2video",
     }
 
 
@@ -322,7 +702,9 @@ def generate_img2img(job_input):
 # ==========================================
 
 def handler(job):
+
     try:
+
         print(
             "Received RunPod job.",
             flush=True,
@@ -344,16 +726,25 @@ def handler(job):
         )
 
         if task == "img2img":
+
             result = generate_img2img(
                 job_input
             )
 
+        elif task == "img2video":
+
+            result = generate_img2video(
+                job_input
+            )
+
         elif task == "txt2img":
+
             result = generate_txt2img(
                 job_input
             )
 
         else:
+
             raise ValueError(
                 f"Unsupported task: {task}"
             )
@@ -366,13 +757,15 @@ def handler(job):
         return result
 
     except Exception as e:
+
         print(
             "=== JOB FAILED ===",
             flush=True,
         )
 
         print(
-            f"Error type: {type(e).__name__}",
+            f"Error type: "
+            f"{type(e).__name__}",
             flush=True,
         )
 
@@ -385,7 +778,9 @@ def handler(job):
 
         return {
             "error": str(e),
-            "error_type": type(e).__name__,
+            "error_type": (
+                type(e).__name__
+            ),
         }
 
 
