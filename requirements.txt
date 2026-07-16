@@ -12,6 +12,8 @@ sentencepiece
 pillow
 numpy
 requests
+imageio
+imageio-ffmpeg
 
 xformers==0.0.29.post2
 huggingface_hub==0.29.3
