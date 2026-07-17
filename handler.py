@@ -5,9 +5,9 @@ import base64
 import tempfile
 import traceback
 
-import requests
 import runpod
 import torch
+import requests
 import imageio.v2 as imageio
 
 from PIL import Image
@@ -26,10 +26,6 @@ from diffusers import (
 MODEL_ID = "black-forest-labs/FLUX.1-dev"
 VIDEO_MODEL_ID = "Lightricks/LTX-Video"
 
-
-# ==========================================
-# STARTUP INFORMATION
-# ==========================================
 
 print(
     "=== Guns AI Studio RunPod Worker Starting ===",
@@ -65,10 +61,6 @@ DEVICE = (
 )
 
 
-# ==========================================
-# MODEL CACHE
-# ==========================================
-
 txt2img_pipe = None
 img2img_pipe = None
 img2video_pipe = None
@@ -101,12 +93,18 @@ def load_txt2img_model():
     )
 
     if DEVICE == "cuda":
+        print(
+            "Enabling CPU offload for Text-to-Image...",
+            flush=True,
+        )
+
         txt2img_pipe.enable_model_cpu_offload()
+
     else:
         txt2img_pipe.to("cpu")
 
     print(
-        "FLUX Text-to-Image model loaded.",
+        "FLUX Text-to-Image model loaded successfully.",
         flush=True,
     )
 
@@ -136,12 +134,18 @@ def load_img2img_model():
     )
 
     if DEVICE == "cuda":
+        print(
+            "Enabling CPU offload for Img2Img...",
+            flush=True,
+        )
+
         img2img_pipe.enable_model_cpu_offload()
+
     else:
         img2img_pipe.to("cpu")
 
     print(
-        "FLUX Img2Img model loaded.",
+        "FLUX Img2Img model loaded successfully.",
         flush=True,
     )
 
@@ -165,15 +169,19 @@ def load_img2video_model():
         else torch.float32
     )
 
-    img2video_pipe = (
-        LTXImageToVideoPipeline.from_pretrained(
-            VIDEO_MODEL_ID,
-            torch_dtype=dtype,
-        )
+    img2video_pipe = LTXImageToVideoPipeline.from_pretrained(
+        VIDEO_MODEL_ID,
+        torch_dtype=dtype,
     )
 
     if DEVICE == "cuda":
+        print(
+            "Enabling CPU offload for Image-to-Video...",
+            flush=True,
+        )
+
         img2video_pipe.enable_model_cpu_offload()
+
     else:
         img2video_pipe.to("cpu")
 
@@ -185,18 +193,18 @@ def load_img2video_model():
             img2video_pipe.vae.enable_tiling()
 
             print(
-                "LTX VAE tiling enabled.",
+                "VAE tiling enabled.",
                 flush=True,
             )
 
-        except Exception as error:
+        except Exception as e:
             print(
-                f"Could not enable VAE tiling: {error}",
+                f"Could not enable VAE tiling: {e}",
                 flush=True,
             )
 
     print(
-        "LTX Image-to-Video model loaded.",
+        "LTX Image-to-Video model loaded successfully.",
         flush=True,
     )
 
@@ -220,51 +228,14 @@ def image_to_base64(image):
     ).decode("utf-8")
 
 
-def base64_to_image(image_base64):
-    if not image_base64:
-        raise ValueError(
-            "No image_base64 was provided."
-        )
+def load_input_image(job_input):
+    """
+    Loads an input image from either:
 
-    if "," in image_base64:
-        image_base64 = image_base64.split(
-            ",",
-            1,
-        )[1]
+    1. image_base64
+    2. image_url
+    """
 
-    image_bytes = base64.b64decode(
-        image_base64
-    )
-
-    return Image.open(
-        io.BytesIO(image_bytes)
-    ).convert("RGB")
-
-
-def url_to_image(image_url):
-    if not image_url:
-        raise ValueError(
-            "No image_url was provided."
-        )
-
-    print(
-        "Downloading input image from URL...",
-        flush=True,
-    )
-
-    response = requests.get(
-        image_url,
-        timeout=120,
-    )
-
-    response.raise_for_status()
-
-    return Image.open(
-        io.BytesIO(response.content)
-    ).convert("RGB")
-
-
-def get_input_image(job_input):
     image_base64 = job_input.get(
         "image_base64"
     )
@@ -275,27 +246,58 @@ def get_input_image(job_input):
 
     if image_base64:
         print(
-            "Loading input image from base64.",
+            "Loading input image from base64...",
             flush=True,
         )
 
-        return base64_to_image(
+        if "," in image_base64:
+            image_base64 = image_base64.split(
+                ",",
+                1,
+            )[1]
+
+        image_bytes = base64.b64decode(
             image_base64
         )
 
+        return Image.open(
+            io.BytesIO(image_bytes)
+        ).convert("RGB")
+
     if image_url:
         print(
-            "Loading input image from URL.",
+            f"Downloading input image from URL: {image_url}",
             flush=True,
         )
 
-        return url_to_image(
-            image_url
+        response = requests.get(
+            image_url,
+            timeout=120,
         )
 
+        response.raise_for_status()
+
+        content_type = response.headers.get(
+            "Content-Type",
+            "",
+        )
+
+        if (
+            content_type
+            and not content_type.startswith("image/")
+        ):
+            print(
+                f"Warning: URL returned Content-Type: {content_type}",
+                flush=True,
+            )
+
+        return Image.open(
+            io.BytesIO(response.content)
+        ).convert("RGB")
+
     raise ValueError(
-        "An image is required. "
-        "Provide image_base64 or image_url."
+        "No input image provided. "
+        "Provide either image_base64 or image_url."
     )
 
 
@@ -366,9 +368,7 @@ def generate_txt2img(job_input):
 
     generator = torch.Generator(
         device="cpu"
-    ).manual_seed(
-        seed
-    )
+    ).manual_seed(seed)
 
     image = model(
         prompt=prompt,
@@ -432,7 +432,7 @@ def generate_img2img(job_input):
             (1,),
         ).item()
 
-    input_image = get_input_image(
+    input_image = load_input_image(
         job_input
     )
 
@@ -496,9 +496,7 @@ def generate_img2img(job_input):
 
     generator = torch.Generator(
         device="cpu"
-    ).manual_seed(
-        seed
-    )
+    ).manual_seed(seed)
 
     image = model(
         prompt=prompt,
@@ -551,6 +549,7 @@ def generate_img2video(job_input):
             "blurry face, "
             "flickering, "
             "jittery motion, "
+            "slow motion, "
             "low quality"
         ),
     )
@@ -597,7 +596,7 @@ def generate_img2video(job_input):
             (1,),
         ).item()
 
-    input_image = get_input_image(
+    input_image = load_input_image(
         job_input
     )
 
@@ -641,9 +640,7 @@ def generate_img2video(job_input):
 
     generator = torch.Generator(
         device=generator_device
-    ).manual_seed(
-        seed
-    )
+    ).manual_seed(seed)
 
     output = model(
         image=input_image,
@@ -735,18 +732,18 @@ def handler(job):
             flush=True,
         )
 
-        if task == "txt2img":
-            result = generate_txt2img(
-                job_input
-            )
-
-        elif task == "img2img":
+        if task == "img2img":
             result = generate_img2img(
                 job_input
             )
 
         elif task == "img2video":
             result = generate_img2video(
+                job_input
+            )
+
+        elif task == "txt2img":
+            result = generate_txt2img(
                 job_input
             )
 
@@ -762,30 +759,27 @@ def handler(job):
 
         return result
 
-    except Exception as error:
+    except Exception as e:
         print(
             "=== JOB FAILED ===",
             flush=True,
         )
 
         print(
-            f"Error type: "
-            f"{type(error).__name__}",
+            f"Error type: {type(e).__name__}",
             flush=True,
         )
 
         print(
-            f"Error: {error}",
+            f"Error: {e}",
             flush=True,
         )
 
         traceback.print_exc()
 
         return {
-            "error": str(error),
-            "error_type": (
-                type(error).__name__
-            ),
+            "error": str(e),
+            "error_type": type(e).__name__,
         }
 
 
@@ -802,4 +796,4 @@ runpod.serverless.start(
     {
         "handler": handler
     }
-)
+    )
