@@ -5,6 +5,7 @@ import base64
 import tempfile
 import traceback
 
+import requests
 import runpod
 import torch
 import imageio.v2 as imageio
@@ -25,6 +26,10 @@ from diffusers import (
 MODEL_ID = "black-forest-labs/FLUX.1-dev"
 VIDEO_MODEL_ID = "Lightricks/LTX-Video"
 
+
+# ==========================================
+# STARTUP INFORMATION
+# ==========================================
 
 print(
     "=== Guns AI Studio RunPod Worker Starting ===",
@@ -60,6 +65,10 @@ DEVICE = (
 )
 
 
+# ==========================================
+# MODEL CACHE
+# ==========================================
+
 txt2img_pipe = None
 img2img_pipe = None
 img2video_pipe = None
@@ -92,18 +101,12 @@ def load_txt2img_model():
     )
 
     if DEVICE == "cuda":
-        print(
-            "Enabling CPU offload for Text-to-Image...",
-            flush=True,
-        )
-
         txt2img_pipe.enable_model_cpu_offload()
-
     else:
         txt2img_pipe.to("cpu")
 
     print(
-        "FLUX Text-to-Image model loaded successfully.",
+        "FLUX Text-to-Image model loaded.",
         flush=True,
     )
 
@@ -133,18 +136,12 @@ def load_img2img_model():
     )
 
     if DEVICE == "cuda":
-        print(
-            "Enabling CPU offload for Img2Img...",
-            flush=True,
-        )
-
         img2img_pipe.enable_model_cpu_offload()
-
     else:
         img2img_pipe.to("cpu")
 
     print(
-        "FLUX Img2Img model loaded successfully.",
+        "FLUX Img2Img model loaded.",
         flush=True,
     )
 
@@ -176,18 +173,10 @@ def load_img2video_model():
     )
 
     if DEVICE == "cuda":
-
-        print(
-            "Enabling CPU offload for Image-to-Video...",
-            flush=True,
-        )
-
         img2video_pipe.enable_model_cpu_offload()
-
     else:
         img2video_pipe.to("cpu")
 
-    # Helps reduce memory use during VAE decoding.
     if hasattr(
         img2video_pipe,
         "vae",
@@ -196,18 +185,18 @@ def load_img2video_model():
             img2video_pipe.vae.enable_tiling()
 
             print(
-                "VAE tiling enabled.",
+                "LTX VAE tiling enabled.",
                 flush=True,
             )
 
-        except Exception as e:
+        except Exception as error:
             print(
-                f"Could not enable VAE tiling: {e}",
+                f"Could not enable VAE tiling: {error}",
                 flush=True,
             )
 
     print(
-        "LTX Image-to-Video model loaded successfully.",
+        "LTX Image-to-Video model loaded.",
         flush=True,
     )
 
@@ -238,12 +227,10 @@ def base64_to_image(image_base64):
         )
 
     if "," in image_base64:
-        image_base64 = (
-            image_base64.split(
-                ",",
-                1,
-            )[1]
-        )
+        image_base64 = image_base64.split(
+            ",",
+            1,
+        )[1]
 
     image_bytes = base64.b64decode(
         image_base64
@@ -254,12 +241,69 @@ def base64_to_image(image_base64):
     ).convert("RGB")
 
 
+def url_to_image(image_url):
+    if not image_url:
+        raise ValueError(
+            "No image_url was provided."
+        )
+
+    print(
+        "Downloading input image from URL...",
+        flush=True,
+    )
+
+    response = requests.get(
+        image_url,
+        timeout=120,
+    )
+
+    response.raise_for_status()
+
+    return Image.open(
+        io.BytesIO(response.content)
+    ).convert("RGB")
+
+
+def get_input_image(job_input):
+    image_base64 = job_input.get(
+        "image_base64"
+    )
+
+    image_url = job_input.get(
+        "image_url"
+    )
+
+    if image_base64:
+        print(
+            "Loading input image from base64.",
+            flush=True,
+        )
+
+        return base64_to_image(
+            image_base64
+        )
+
+    if image_url:
+        print(
+            "Loading input image from URL.",
+            flush=True,
+        )
+
+        return url_to_image(
+            image_url
+        )
+
+    raise ValueError(
+        "An image is required. "
+        "Provide image_base64 or image_url."
+    )
+
+
 def file_to_base64(file_path):
     with open(
         file_path,
         "rb",
     ) as file:
-
         return base64.b64encode(
             file.read()
         ).decode("utf-8")
@@ -270,7 +314,6 @@ def file_to_base64(file_path):
 # ==========================================
 
 def generate_txt2img(job_input):
-
     prompt = job_input.get(
         "prompt",
         "A beautiful photorealistic landscape",
@@ -305,7 +348,6 @@ def generate_txt2img(job_input):
     )
 
     if seed <= 0:
-
         seed = torch.randint(
             1,
             2147483647,
@@ -324,7 +366,9 @@ def generate_txt2img(job_input):
 
     generator = torch.Generator(
         device="cpu"
-    ).manual_seed(seed)
+    ).manual_seed(
+        seed
+    )
 
     image = model(
         prompt=prompt,
@@ -348,20 +392,10 @@ def generate_txt2img(job_input):
 # ==========================================
 
 def generate_img2img(job_input):
-
     prompt = job_input.get(
         "prompt",
         "Enhance this image while preserving the subject.",
     )
-
-    image_base64 = job_input.get(
-        "image_base64"
-    )
-
-    if not image_base64:
-        raise ValueError(
-            "Img2Img requires image_base64."
-        )
 
     strength = float(
         job_input.get(
@@ -392,24 +426,18 @@ def generate_img2img(job_input):
     )
 
     if seed <= 0:
-
         seed = torch.randint(
             1,
             2147483647,
             (1,),
         ).item()
 
-    input_image = base64_to_image(
-        image_base64
+    input_image = get_input_image(
+        job_input
     )
 
-    original_width = (
-        input_image.width
-    )
-
-    original_height = (
-        input_image.height
-    )
+    original_width = input_image.width
+    original_height = input_image.height
 
     max_dimension = 1024
 
@@ -468,7 +496,9 @@ def generate_img2img(job_input):
 
     generator = torch.Generator(
         device="cpu"
-    ).manual_seed(seed)
+    ).manual_seed(
+        seed
+    )
 
     image = model(
         prompt=prompt,
@@ -501,7 +531,6 @@ def generate_img2img(job_input):
 # ==========================================
 
 def generate_img2video(job_input):
-
     prompt = job_input.get(
         "prompt",
         (
@@ -522,20 +551,9 @@ def generate_img2video(job_input):
             "blurry face, "
             "flickering, "
             "jittery motion, "
-            "slow motion, "
             "low quality"
         ),
     )
-
-    image_base64 = job_input.get(
-        "image_base64"
-    )
-
-    if not image_base64:
-
-        raise ValueError(
-            "Img2Video requires image_base64."
-        )
 
     steps = int(
         job_input.get(
@@ -573,29 +591,24 @@ def generate_img2video(job_input):
     )
 
     if seed <= 0:
-
         seed = torch.randint(
             1,
             2147483647,
             (1,),
         ).item()
 
-    input_image = base64_to_image(
-        image_base64
+    input_image = get_input_image(
+        job_input
     )
 
-    # LTX works best with dimensions
-    # divisible by 32.
     if (
         input_image.width
         >= input_image.height
     ):
-
         width = 704
         height = 480
 
     else:
-
         width = 480
         height = 704
 
@@ -628,7 +641,9 @@ def generate_img2video(job_input):
 
     generator = torch.Generator(
         device=generator_device
-    ).manual_seed(seed)
+    ).manual_seed(
+        seed
+    )
 
     output = model(
         image=input_image,
@@ -661,7 +676,6 @@ def generate_img2video(job_input):
     temp_file.close()
 
     try:
-
         imageio.mimsave(
             video_path,
             frames,
@@ -679,11 +693,9 @@ def generate_img2video(job_input):
         )
 
     finally:
-
         if os.path.exists(
             video_path
         ):
-
             os.remove(
                 video_path
             )
@@ -702,9 +714,7 @@ def generate_img2video(job_input):
 # ==========================================
 
 def handler(job):
-
     try:
-
         print(
             "Received RunPod job.",
             flush=True,
@@ -725,26 +735,22 @@ def handler(job):
             flush=True,
         )
 
-        if task == "img2img":
+        if task == "txt2img":
+            result = generate_txt2img(
+                job_input
+            )
 
+        elif task == "img2img":
             result = generate_img2img(
                 job_input
             )
 
         elif task == "img2video":
-
             result = generate_img2video(
                 job_input
             )
 
-        elif task == "txt2img":
-
-            result = generate_txt2img(
-                job_input
-            )
-
         else:
-
             raise ValueError(
                 f"Unsupported task: {task}"
             )
@@ -756,8 +762,7 @@ def handler(job):
 
         return result
 
-    except Exception as e:
-
+    except Exception as error:
         print(
             "=== JOB FAILED ===",
             flush=True,
@@ -765,21 +770,21 @@ def handler(job):
 
         print(
             f"Error type: "
-            f"{type(e).__name__}",
+            f"{type(error).__name__}",
             flush=True,
         )
 
         print(
-            f"Error: {e}",
+            f"Error: {error}",
             flush=True,
         )
 
         traceback.print_exc()
 
         return {
-            "error": str(e),
+            "error": str(error),
             "error_type": (
-                type(e).__name__
+                type(error).__name__
             ),
         }
 
