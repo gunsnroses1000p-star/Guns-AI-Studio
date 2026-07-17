@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir -r requirements-runpod.txt
 
 COPY . .
 
-ENV PYTHONPATH="/opt/Wan2.2:${PYTHONPATH}"
+ENV PYTHONPATH="/opt/Wan2.2"
 
 CMD ["python", "-u", "handler.py"]
 
