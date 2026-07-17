@@ -3,9 +3,9 @@
 torch==2.5.1
 torchvision==0.20.1
 
-diffusers==0.35.1
-transformers==4.57.1
-accelerate==1.11.0
+diffusers
+transformers
+accelerate
 safetensors>=0.4.0
 
 insightface
@@ -14,7 +14,7 @@ replicate
 runpod
 Pillow
 requests
-huggingface_hub>=0.33.0
+huggingface_hub>=1.2.0,<2.0
 
 git+https://github.com/tencent-ailab/IP-Adapter.git
 
