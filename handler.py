@@ -230,10 +230,7 @@ def image_to_base64(image):
 
 def load_input_image(job_input):
     """
-    Loads an input image from either:
-
-    1. image_base64
-    2. image_url
+    Load an image from either image_base64 or image_url.
     """
 
     image_base64 = job_input.get(
@@ -260,9 +257,16 @@ def load_input_image(job_input):
             image_base64
         )
 
-        return Image.open(
+        image = Image.open(
             io.BytesIO(image_bytes)
         ).convert("RGB")
+
+        print(
+            "Base64 input image loaded successfully.",
+            flush=True,
+        )
+
+        return image
 
     if image_url:
         print(
@@ -277,23 +281,16 @@ def load_input_image(job_input):
 
         response.raise_for_status()
 
-        content_type = response.headers.get(
-            "Content-Type",
-            "",
-        )
-
-        if (
-            content_type
-            and not content_type.startswith("image/")
-        ):
-            print(
-                f"Warning: URL returned Content-Type: {content_type}",
-                flush=True,
-            )
-
-        return Image.open(
+        image = Image.open(
             io.BytesIO(response.content)
         ).convert("RGB")
+
+        print(
+            "URL input image loaded successfully.",
+            flush=True,
+        )
+
+        return image
 
     raise ValueError(
         "No input image provided. "
@@ -766,7 +763,8 @@ def handler(job):
         )
 
         print(
-            f"Error type: {type(e).__name__}",
+            f"Error type: "
+            f"{type(e).__name__}",
             flush=True,
         )
 
