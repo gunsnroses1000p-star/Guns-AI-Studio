@@ -529,46 +529,49 @@ def generate_img2video(job_input):
     prompt = job_input.get(
         "prompt",
         (
-            "Natural realistic motion, "
-            "cinematic movement, "
-            "stable identity."
+            "Photorealistic natural subtle motion, "
+            "same exact person and facial features as the input image, "
+            "stable face, consistent identity, "
+            "subtle natural blinking, "
+            "very gentle head movement, "
+            "realistic skin texture, "
+            "physically realistic motion, "
+            "static stable facial structure."
         ),
     )
 
     negative_prompt = job_input.get(
         "negative_prompt",
         (
-            "different person, "
-            "identity drift, "
-            "distorted face, "
-            "deformed face, "
-            "asymmetrical eyes, "
-            "blurry face, "
-            "flickering, "
-            "jittery motion, "
-            "slow motion, "
-            "low quality"
+            "different person, identity change, identity drift, "
+            "face morphing, face warping, melting face, squished face, "
+            "distorted face, deformed face, changing facial structure, "
+            "asymmetrical eyes, deformed eyes, moving facial features, "
+            "rubber face, elastic face, stretched face, "
+            "blurry face, flickering face, unstable face, "
+            "exaggerated expression, excessive head movement, "
+            "jittery motion, unnatural motion, low quality"
         ),
     )
 
     steps = int(
         job_input.get(
             "steps",
-            30,
+            35,
         )
     )
 
     guidance_scale = float(
         job_input.get(
             "guidance_scale",
-            5.0,
+            4.0,
         )
     )
 
     num_frames = int(
         job_input.get(
             "num_frames",
-            121,
+            81,
         )
     )
 
@@ -597,22 +600,15 @@ def generate_img2video(job_input):
         job_input
     )
 
-    if (
-        input_image.width
-        >= input_image.height
-    ):
+    if input_image.width >= input_image.height:
         width = 704
         height = 480
-
     else:
         width = 480
         height = 704
 
     input_image = input_image.resize(
-        (
-            width,
-            height,
-        ),
+        (width, height),
         Image.LANCZOS,
     )
 
@@ -649,8 +645,8 @@ def generate_img2video(job_input):
         num_inference_steps=steps,
         guidance_scale=guidance_scale,
         generator=generator,
-        decode_timestep=0.05,
-        decode_noise_scale=0.015,
+        decode_timestep=0.03,
+        decode_noise_scale=0.008,
     )
 
     frames = output.frames[0]
@@ -666,7 +662,6 @@ def generate_img2video(job_input):
     )
 
     video_path = temp_file.name
-
     temp_file.close()
 
     try:
@@ -687,12 +682,8 @@ def generate_img2video(job_input):
         )
 
     finally:
-        if os.path.exists(
-            video_path
-        ):
-            os.remove(
-                video_path
-            )
+        if os.path.exists(video_path):
+            os.remove(video_path)
 
     return {
         "video_base64": video_base64,
@@ -702,6 +693,7 @@ def generate_img2video(job_input):
         "task": "img2video",
     }
 
+    
 
 # ==========================================
 # RUNPOD HANDLER
