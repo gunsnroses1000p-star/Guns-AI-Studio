@@ -7,6 +7,7 @@ safetensors>=0.4.0
 insightface
 onnxruntime
 replicate
+runpod
 Pillow
 requests
 huggingface_hub>=0.33.0
