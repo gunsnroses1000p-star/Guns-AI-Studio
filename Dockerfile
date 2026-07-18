@@ -15,9 +15,10 @@ ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
 # Install Wan dependencies
 RUN pip install --no-cache-dir -r /opt/Wan2.2/requirements.txt
 
-# Install our RunPod worker dependencies
-COPY requirements-runpod.txt .
-RUN pip install --no-cache-dir -r requirements-runpod.txt
+# Install Wan dependencies without flash-attn
+RUN grep -v -i "flash_attn\|flash-attn" /opt/Wan2.2/requirements.txt > /tmp/wan-requirements.txt \
+    && pip install --no-cache-dir -r /tmp/wan-requirements.txt
+
 RUN pip uninstall -y torchaudio || true
 COPY . .
 
