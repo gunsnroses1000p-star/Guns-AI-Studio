@@ -7,7 +7,7 @@ diffusers
 transformers
 accelerate
 safetensors>=0.4.0
-
+decord
 insightface
 onnxruntime
 replicate
