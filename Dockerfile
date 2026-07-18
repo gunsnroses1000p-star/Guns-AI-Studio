@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r /opt/Wan2.2/requirements.txt
 # Install our RunPod worker dependencies
 COPY requirements-runpod.txt .
 RUN pip install --no-cache-dir -r requirements-runpod.txt
-
+RUN pip uninstall -y torchaudio || true
 COPY . .
 
 ENV PYTHONPATH="/opt/Wan2.2"
