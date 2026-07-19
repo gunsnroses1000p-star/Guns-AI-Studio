@@ -16,3 +16,4 @@ imageio
 imageio-ffmpeg
 decord
 librosa
+einops
