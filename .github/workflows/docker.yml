@@ -25,4 +25,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: guns007/guns-ai-studio:v9
+          tags: guns007/guns-ai-studio:v10
