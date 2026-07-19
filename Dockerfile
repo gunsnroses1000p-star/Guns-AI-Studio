@@ -17,7 +17,7 @@ RUN grep -v -i "flash_attn\|flash-attn" /opt/Wan2.2/requirements.txt > /tmp/wan-
 RUN pip install --no-cache-dir runpod
 
 # Wan deps seen missing in logs
-RUN pip install --no-cache-dir decord librosa einops
+RUN pip install --no-cache-dir decord librosa einops peft
 
 # Optional: if you must align torch/torchvision to official cu126 wheels, do this (NO torchaudio):
 # RUN pip install --no-cache-dir --upgrade --force-reinstall \
