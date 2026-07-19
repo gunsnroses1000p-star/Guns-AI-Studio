@@ -13,15 +13,19 @@ ENV PYTHONPATH="/opt/Wan2.2"
 RUN grep -v -i "flash_attn\|flash-attn" /opt/Wan2.2/requirements.txt > /tmp/wan-requirements.txt \
     && pip install --no-cache-dir -r /tmp/wan-requirements.txt
 
-# Ensure consistent torch family (prevents libtorchaudio.so symbol crashes)
-RUN pip install --no-cache-dir --upgrade --force-reinstall \
-    torch torchvision torchaudio \
-    --index-url https://download.pytorch.org/whl/cu126
+# Runpod serverless runtime (required by handler.py)
+RUN pip install --no-cache-dir runpod
 
-# Wan missing deps seen in logs
+# Wan deps seen missing in logs
 RUN pip install --no-cache-dir decord librosa
+
+# Optional: if you must align torch/torchvision to official cu126 wheels, do this (NO torchaudio):
+# RUN pip install --no-cache-dir --upgrade --force-reinstall \
+#     torch torchvision \
+#     --index-url https://download.pytorch.org/whl/cu126
 
 COPY . .
 CMD ["python", "-u", "handler.py"]
+
 
 
