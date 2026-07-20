@@ -477,6 +477,43 @@ def generate_img2video(job_input):
             )
 
         if not os.path.exists(video_path):
+                    # Re-encode the generated video to 16 FPS.
+        # 81 frames at 16 FPS gives about 5 seconds.
+        fps_video_path = video_path + ".fps16.mp4"
+
+        fps_command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            video_path,
+            "-r",
+            "16",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            fps_video_path,
+        ]
+
+        print(
+            "Converting video to 16 FPS...",
+            flush=True,
+        )
+
+        subprocess.run(
+            fps_command,
+            check=True,
+        )
+
+        os.replace(
+            fps_video_path,
+            video_path,
+        )
+
+        print(
+            "Video converted to 16 FPS successfully.",
+            flush=True,
+        )
             raise RuntimeError(
                 "Wan completed but no video file was created."
             )
