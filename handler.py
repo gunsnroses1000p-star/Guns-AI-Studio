@@ -376,7 +376,7 @@ def generate_img2video(job_input):
     num_frames = sanitize_frames(
         job_input.get(
             "num_frames",
-            49,
+            81,
         )
     )
 
