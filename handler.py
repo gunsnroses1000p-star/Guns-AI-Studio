@@ -476,8 +476,21 @@ def generate_img2video(job_input):
                 f"with code {return_code}."
             )
 
-        if not os.path.exists(video_path):
-                    # Re-encode the generated video to 16 FPS.
+                if not os.path.exists(video_path):
+            raise RuntimeError(
+                "Wan completed but no video file was created."
+            )
+
+        video_size = os.path.getsize(
+            video_path
+        )
+
+        if video_size <= 0:
+            raise RuntimeError(
+                "Wan created an empty video file."
+            )
+
+        # Re-encode the generated video to 16 FPS.
         # 81 frames at 16 FPS gives about 5 seconds.
         fps_video_path = video_path + ".fps16.mp4"
 
@@ -514,25 +527,10 @@ def generate_img2video(job_input):
             "Video converted to 16 FPS successfully.",
             flush=True,
         )
-            raise RuntimeError(
-                "Wan completed but no video file was created."
-            )
 
         video_size = os.path.getsize(
             video_path
         )
-
-        if video_size <= 0:
-            raise RuntimeError(
-                "Wan created an empty video file."
-            )
-
-        print(
-            "Wan video created successfully. "
-            f"File size={video_size} bytes",
-            flush=True,
-        )
-
         video_base64 = file_to_base64(
             video_path
         )
