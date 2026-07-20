@@ -476,7 +476,7 @@ def generate_img2video(job_input):
                 f"with code {return_code}."
             )
 
-                if not os.path.exists(video_path):
+        if not os.path.exists(video_path):
             raise RuntimeError(
                 "Wan completed but no video file was created."
             )
