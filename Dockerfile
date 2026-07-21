@@ -1,6 +1,47 @@
+# ============================================================
+# STAGE 1: BUILD FLASH ATTENTION
+# ============================================================
+
+FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-devel AS builder
+
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH="${CUDA_HOME}/bin:${PATH}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ninja-build \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir -U \
+    pip \
+    setuptools \
+    wheel \
+    packaging \
+    ninja
+
+# Build a Flash Attention wheel that we can copy into
+# the smaller runtime image.
+RUN mkdir -p /wheels \
+    && MAX_JOBS=4 pip wheel \
+        --no-cache-dir \
+        --no-build-isolation \
+        --no-deps \
+        flash-attn \
+        -w /wheels
+
+
+# ============================================================
+# STAGE 2: FINAL RUNTIME IMAGE
+# ============================================================
+
 FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
 
 WORKDIR /app
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH="/opt/Wan2.2"
 
 # ============================================================
 # SYSTEM DEPENDENCIES
@@ -9,8 +50,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ffmpeg \
-    ninja-build \
-    build-essential \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -24,51 +63,37 @@ RUN git clone --depth 1 \
     /opt/Wan2.2
 
 # ============================================================
-# ENVIRONMENT
-# ============================================================
-
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
-ENV CUDA_HOME=/usr/local/cuda
-ENV PATH="${CUDA_HOME}/bin:${PATH}"
-ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
-ENV PYTHONPATH="/opt/Wan2.2:${PYTHONPATH}"
-
-# ============================================================
-# PYTHON BUILD TOOLS
+# PYTHON TOOLS
 # ============================================================
 
 RUN pip install --no-cache-dir -U \
     pip \
     setuptools \
-    wheel \
-    packaging \
-    ninja
+    wheel
 
 # ============================================================
 # WAN REQUIREMENTS
-# Install everything except Flash Attention first
+# Install everything except Flash Attention
 # ============================================================
 
 RUN grep -v -i "flash_attn\|flash-attn" \
     /opt/Wan2.2/requirements.txt \
     > /tmp/wan-requirements.txt \
     && pip install --no-cache-dir \
-    -r /tmp/wan-requirements.txt \
+        -r /tmp/wan-requirements.txt \
     && rm -f /tmp/wan-requirements.txt
 
 # ============================================================
-# FLASH ATTENTION
+# INSTALL PRECOMPILED FLASH ATTENTION FROM BUILDER
 # ============================================================
 
-RUN MAX_JOBS=4 pip install \
-    --no-cache-dir \
-    flash-attn \
-    --no-build-isolation
+COPY --from=builder /wheels /wheels
+
+RUN pip install --no-cache-dir /wheels/*.whl \
+    && rm -rf /wheels
 
 # ============================================================
-# RUNPOD + IMAGE PIPELINES
+# RUNPOD + HANDLER DEPENDENCIES
 # ============================================================
 
 RUN pip install --no-cache-dir \
@@ -85,7 +110,7 @@ RUN pip install --no-cache-dir \
     peft
 
 # ============================================================
-# VERIFY IMPORTANT IMPORTS DURING BUILD
+# VERIFY INSTALLATION
 # ============================================================
 
 RUN python -c "import torch; print('Torch:', torch.__version__); print('CUDA build:', torch.version.cuda)"
