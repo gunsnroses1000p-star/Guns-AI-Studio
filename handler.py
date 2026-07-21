@@ -1,3 +1,4 @@
+print("HANDLER.PY PROCESS STARTED", flush=True)
 import io
 import os
 import sys
