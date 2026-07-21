@@ -5,7 +5,7 @@ from pathlib import Path
 RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
 RUNPOD_ENDPOINT_ID = os.getenv("RUNPOD_ENDPOINT_ID")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
-HF_TOKEN = os.getenv("HF_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
 FAL_KEY = os.getenv("FAL_KEY") 
 CIVITAI_KEY = os.getenv("CIVITAI_API_KEY") 
 
