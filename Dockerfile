@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir -U \
     wheel \
     packaging \
     ninja
+    protobuf \
+    sentencepiece
 
 # Build a Flash Attention wheel that we can copy into
 # the smaller runtime image.
@@ -108,7 +110,9 @@ RUN pip install --no-cache-dir \
     librosa \
     einops \
     peft
-
+    protobuf \
+    sentencepiece
+    tokenizers
 # ============================================================
 # VERIFY INSTALLATION
 # ============================================================
