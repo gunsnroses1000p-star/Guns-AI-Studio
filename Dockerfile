@@ -1,8 +1,11 @@
-FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-devel
+FROM pytorch/pytorch:2.7.1-cuda12.6-cudnn9-runtime
 
 WORKDIR /app
 
-# System deps
+# ============================================================
+# SYSTEM DEPENDENCIES
+# ============================================================
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     ffmpeg \
@@ -12,28 +15,62 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone Wan2.2 repo
-RUN git clone --depth 1 https://github.com/Wan-Video/Wan2.2.git /opt/Wan2.2
+# ============================================================
+# WAN 2.2
+# ============================================================
 
-# CUDA env
+RUN git clone --depth 1 \
+    https://github.com/Wan-Video/Wan2.2.git \
+    /opt/Wan2.2
+
+# ============================================================
+# ENVIRONMENT
+# ============================================================
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH="${CUDA_HOME}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}"
-ENV PYTHONPATH="/opt/Wan2.2"
+ENV PYTHONPATH="/opt/Wan2.2:${PYTHONPATH}"
 
-# Python deps: upgrade pip tooling first (helps with builds)
-RUN pip install --no-cache-dir -U pip setuptools wheel
+# ============================================================
+# PYTHON BUILD TOOLS
+# ============================================================
 
-# Install Wan deps except flash-attn first
-RUN grep -v -i "flash_attn\|flash-attn" /opt/Wan2.2/requirements.txt > /tmp/wan-requirements.txt \
-    && pip install --no-cache-dir -r /tmp/wan-requirements.txt
+RUN pip install --no-cache-dir -U \
+    pip \
+    setuptools \
+    wheel \
+    packaging \
+    ninja
 
-# Build/install Flash Attention 2
-RUN pip install --no-cache-dir packaging ninja \
-    && MAX_JOBS=4 pip install --no-cache-dir flash-attn --no-build-isolation
+# ============================================================
+# WAN REQUIREMENTS
+# Install everything except Flash Attention first
+# ============================================================
 
-# Core runtime deps for your handler
-# (diffusers stack + HF downloads + HTTP)
+RUN grep -v -i "flash_attn\|flash-attn" \
+    /opt/Wan2.2/requirements.txt \
+    > /tmp/wan-requirements.txt \
+    && pip install --no-cache-dir \
+    -r /tmp/wan-requirements.txt \
+    && rm -f /tmp/wan-requirements.txt
+
+# ============================================================
+# FLASH ATTENTION
+# ============================================================
+
+RUN MAX_JOBS=4 pip install \
+    --no-cache-dir \
+    flash-attn \
+    --no-build-isolation
+
+# ============================================================
+# RUNPOD + IMAGE PIPELINES
+# ============================================================
+
 RUN pip install --no-cache-dir \
     runpod \
     requests \
@@ -41,17 +78,30 @@ RUN pip install --no-cache-dir \
     transformers \
     accelerate \
     safetensors \
-    huggingface_hub
+    huggingface_hub \
+    decord \
+    librosa \
+    einops \
+    peft
 
-# Extra Wan deps you mentioned
-RUN pip install --no-cache-dir decord librosa einops peft
+# ============================================================
+# VERIFY IMPORTANT IMPORTS DURING BUILD
+# ============================================================
 
-# Verify flash-attn import during build
-RUN python -c "import flash_attn; print('Flash Attention OK:', flash_attn.__version__)"
+RUN python -c "import torch; print('Torch:', torch.__version__); print('CUDA build:', torch.version.cuda)"
 
-# Copy your serverless worker code
-COPY . .
+RUN python -c "import flash_attn; print('Flash Attention:', flash_attn.__version__)"
 
-# Serverless worker entrypoint
-CMD ["python", "-u", "handler.py"]
+RUN python -c "import runpod; import diffusers; import transformers; print('Core imports OK')"
 
+# ============================================================
+# COPY SERVERLESS WORKER
+# ============================================================
+
+COPY . /app
+
+# ============================================================
+# START RUNPOD WORKER
+# ============================================================
+
+CMD ["python", "-u", "/app/handler.py"]
