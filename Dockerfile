@@ -108,7 +108,7 @@ RUN pip install --no-cache-dir \
     decord \
     librosa \
     einops \
-    peft
+    peft \
     protobuf \
     sentencepiece \
     tokenizers
