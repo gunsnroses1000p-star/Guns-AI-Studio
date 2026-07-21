@@ -58,6 +58,10 @@ else:
 WAN_MODEL_DIR = os.path.join(
     MODEL_ROOT,
     "Wan2.2-TI2V-5B",
+# Hugging Face auth: accept either env var name
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACEHUB_API_TOKEN")
+print("BOOT: HF token present:", bool(HF_TOKEN), flush=True)
+
 )
 
 _flux_pipe = None
@@ -270,7 +274,7 @@ def load_flux_model():
     _flux_pipe = FluxPipeline.from_pretrained(
     FLUX_MODEL_ID,
     torch_dtype=dtype,
-    token=HUGGINGFACEHUB_API_TOKEN,  # <-- ADD THIS
+    token=HF_TOKEN,  # <-- ADD THIS
 )
 
     
