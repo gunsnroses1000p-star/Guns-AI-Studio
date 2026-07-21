@@ -110,7 +110,7 @@ RUN pip install --no-cache-dir \
     einops \
     peft
     protobuf \
-    sentencepiece
+    sentencepiece \
     tokenizers
 # ============================================================
 # VERIFY INSTALLATION
