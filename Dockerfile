@@ -19,8 +19,7 @@ RUN pip install --no-cache-dir -U \
     wheel \
     packaging \
     ninja
-    protobuf \
-    sentencepiece
+    
 
 # Build a Flash Attention wheel that we can copy into
 # the smaller runtime image.
