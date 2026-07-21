@@ -234,6 +234,7 @@ def ensure_wan_model():
         repo_id=WAN_MODEL_ID,
         local_dir=WAN_MODEL_DIR,
         local_dir_use_symlinks=False,
+        token=HF_TOKEN,  # <-- ADD THIS
     )
 
     print(
@@ -242,6 +243,7 @@ def ensure_wan_model():
     )
 
     return WAN_MODEL_DIR
+
 
 
 # ============================================================
@@ -266,9 +268,12 @@ def load_flux_model():
     )
 
     _flux_pipe = FluxPipeline.from_pretrained(
-        FLUX_MODEL_ID,
-        torch_dtype=dtype,
-    )
+    FLUX_MODEL_ID,
+    torch_dtype=dtype,
+    token=HUGGINGFACEHUB_API_TOKEN,  # <-- ADD THIS
+)
+
+    
 
     if DEVICE == "cuda":
         _flux_pipe.enable_model_cpu_offload()
